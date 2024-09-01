@@ -6,7 +6,7 @@ from datetime import datetime
 
 # where my topup script is. 
 # Other users can make a copy of the script and edit this path.
-topup_script_path = '/user_data/mmhender/preproc_code/preproc_python/unwarp/run_topup_forSiemens'
+topup_script_path = '/lab_data/hendersonlab/preproc_code/preproc_python/unwarp/run_topup_forSiemens'
 
 
 def do_topup(inpath, do_moco = False):
