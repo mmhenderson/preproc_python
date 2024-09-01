@@ -22,11 +22,11 @@ def analyze_loc(subject):
     
     get_task_timing(subject)
     
-    run_glm_firstlevel(subject)
+    # run_glm_firstlevel(subject)
     
-    run_glm_higherlevel(subject)
+    # run_glm_higherlevel(subject)
     
-    organize_outputs(subject)
+    # organize_outputs(subject)
     
 
 def get_task_timing(subject):
@@ -54,7 +54,7 @@ def get_task_timing(subject):
         print('nTRs:')
         print(run_info_allsess['nTRs'].iloc[inds_this_sess])
 
-        behav_folder = os.path.join(project_root, 'DataBehavior',subject,'Sess%02d'%ss)
+        behav_folder = os.path.join(project_root, 'DataBehavior',subject,'Sess%01d'%ss)
 
         files = os.listdir(behav_folder)
 
@@ -67,7 +67,23 @@ def get_task_timing(subject):
         files = [f for f in files if '_new' in f]
 
         print(files, len(files))
-        
+
+        if len(files)==0:
+            # check if it's in a subfolder, as opposed to top-level folder
+            # floc code spits out the files into subfolders by default
+            subfolder = os.listdir(behav_folder)
+            print(subfolder)
+            print([os.isdir(os.path.join(behav_folder, s)) for s in subfolder])
+            subfolder = [s for s in subfolder if os.isdir(os.path.join(behav_folder, s))]
+            print(subfolder)
+            for s in subfolder:
+                files = os.listdir(os.path.join(behav_folder, subfolder))
+                files = [f for f in files if (run_type in f and '_new' in f)]
+                if len(files)>0:
+                    break
+
+        print(files, len(files))
+
         if (subject=='S01B') and (ss==2):
             
             # this subject we accidentally did multiple tasks, so there are 2 files.

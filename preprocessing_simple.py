@@ -9,7 +9,7 @@ import nibabel as nib
 
 # change these depending on project, etc.
 project_root = '/user_data/mmhender/data_UW/'
-retino_path = '/user_data/mmhender/retino_data/ANAT/'
+retino_path = '/lab_data/hendersonlab/retino_data/ANAT/'
 
 # Code for preprocessing functional MRI data.
 # Runs motion correction and de-trending
