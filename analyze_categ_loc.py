@@ -7,13 +7,14 @@ import scipy.io
 
 
 # just make sure we're loading the right version of these modules
-codepath = '/user_data/mmhender/preproc_code/'
+codepath = '/lab_data/hendersonlab/preproc_code/'
 sys.path.insert(0, codepath)
 
 from preproc_python import file_utils
 
-project_root = '/user_data/mmhender/data_UW/'
-retino_path = '/user_data/mmhender/retino_data/ANAT/'
+# project_root = '/user_data/mmhender/data_UW/'
+project_root = '/user_data/mmhender/data_featsynth/'
+retino_path = '/lab_data/hendersonlab/retino_data/ANAT/'
 
 run_type='fLoc'
 
@@ -54,61 +55,75 @@ def get_task_timing(subject):
         print('nTRs:')
         print(run_info_allsess['nTRs'].iloc[inds_this_sess])
 
-        behav_folder = os.path.join(project_root, 'DataBehavior',subject,'Sess%02d'%ss)
+        behav_folder = os.path.join(project_root, 'DataBehavior',subject,'Sess%01d'%ss)
 
         files = os.listdir(behav_folder)
 
         # we are looking for folder names that have "run_type" in them
         # check that this works, may need to edit depending on how files are named.
-        files = [f for f in files if run_type in f]
-
         # for fLoc: files with "_new" are the ones created by my code "convert_floc_data.m"
         # these should be load-able in python, whereas original ones aren't.
-        files = [f for f in files if '_new' in f]
+        files = [f for f in files if (run_type in f and '_new' in f)]
+
+        if len(files)==0:
+            # check if it's in a subfolder, as opposed to top-level folder
+            # floc code spits out the files into subfolders by default
+            subfolder = os.listdir(behav_folder)
+            subfolder = [s for s in subfolder if not os.path.isfile(os.path.join(behav_folder, s))]
+            for s in subfolder:
+                files = os.listdir(os.path.join(behav_folder, s))
+                files = [f for f in files if (run_type in f and '_new' in f)]
+                files = [os.path.join(s, f) for f in files]
+                if len(files)>0:
+                    break
 
         print(files, len(files))
-        
-        if (subject=='S01B') and (ss==2):
+
+        # if (subject=='S01B') and (ss==2):
             
-            # this subject we accidentally did multiple tasks, so there are 2 files.
-            # Going to load both and combine them
-            twoback = [f for f in files if '_2back' in f][0]
-            oneback = [f for f in files if '_1back' in f][0]
+        #     # this subject we accidentally did multiple tasks, so there are 2 files.
+        #     # Going to load both and combine them
+        #     twoback = [f for f in files if '_2back' in f][0]
+        #     oneback = [f for f in files if '_1back' in f][0]
             
-            fn2load = os.path.join(behav_folder, oneback)
-            print('\nLoading from %s'%fn2load)
-            session = file_utils.load_mat_behav_data(fn2load,'session')[0]
-            print('Found %s runs in this file'%(session['runs_done']))
+        #     fn2load = os.path.join(behav_folder, oneback)
+        #     print('\nLoading from %s'%fn2load)
+        #     session = file_utils.load_mat_behav_data(fn2load,'session')[0]
+        #     print('Found %s runs in this file'%(session['runs_done']))
 
-            fn2load = os.path.join(behav_folder, twoback)
-            print('\nLoading from %s'%fn2load)
-            session_twoback = file_utils.load_mat_behav_data(fn2load,'session')[0]
-            print('Found %s runs in this file'%(session_twoback['runs_done']))
-            twoback_runsdone = session_twoback['runs_done']
-            # ^ only want info about the runs that we did
+        #     fn2load = os.path.join(behav_folder, twoback)
+        #     print('\nLoading from %s'%fn2load)
+        #     session_twoback = file_utils.load_mat_behav_data(fn2load,'session')[0]
+        #     print('Found %s runs in this file'%(session_twoback['runs_done']))
+        #     twoback_runsdone = session_twoback['runs_done']
+        #     # ^ only want info about the runs that we did
 
-            # i am making a new array that combines runs from each.
-            session['sequence']['stim_names']=np.concatenate([np.array(session['sequence']['stim_names'])[:,None], \
-                                                               np.array(session_twoback['sequence']['stim_names'])[:,0:twoback_runsdone]], \
-                                                              axis=1)
-            session['sequence']['stim_onsets']=np.concatenate([np.array(session['sequence']['stim_onsets'])[:,None], \
-                                                               np.array(session_twoback['sequence']['stim_onsets'])[:,0:twoback_runsdone]], \
-                                                              axis=1)
+        #     # i am making a new array that combines runs from each.
+        #     session['sequence']['stim_names']=np.concatenate([np.array(session['sequence']['stim_names'])[:,None], \
+        #                                                        np.array(session_twoback['sequence']['stim_names'])[:,0:twoback_runsdone]], \
+        #                                                       axis=1)
+        #     session['sequence']['stim_onsets']=np.concatenate([np.array(session['sequence']['stim_onsets'])[:,None], \
+        #                                                        np.array(session_twoback['sequence']['stim_onsets'])[:,0:twoback_runsdone]], \
+        #                                                       axis=1)
 
-            n_runs = session['runs_done'] + session_twoback['runs_done']
+        #     n_runs = session['runs_done'] + session_twoback['runs_done']
        
-        else:
+        # else:
+
+        if len(files)==0:
+            print('Zero runs of %s found for Sess %d, continuing...'%(run_type, ss))
+            continue
             
-            assert(len(files)==1)
-            fn2load = os.path.join(behav_folder, files[0])
+        assert(len(files)==1)
+        fn2load = os.path.join(behav_folder, files[0])
 
-            print('\nLoading from %s'%fn2load)
-            session = file_utils.load_mat_behav_data(fn2load,'session')[0]
+        print('\nLoading from %s'%fn2load)
+        session = file_utils.load_mat_behav_data(fn2load,'session')[0]
 
-            # this marks how many runs actually completed. even if you made "sequence" for more than this number.
-            n_runs = session['runs_done']
+        # this marks how many runs actually completed. even if you made "sequence" for more than this number.
+        n_runs = session['runs_done']
 
-                  
+              
         # should be same number as we have brain data for.
         assert(n_runs==len(run_inds))
 
@@ -129,6 +144,10 @@ def get_task_timing(subject):
                 image_list = np.array(session['sequence']['stim_names'])
                 stim_onsets = np.array(session['sequence']['stim_onsets'])
 
+            # adjust for time of the countdown period
+            count_down = session['count_down']
+            stim_onsets = stim_onsets + count_down
+            
             # Then figure out condition of each image.
             # Assumes your image names are formatted like <cond>-<number>
             cond_list = np.array([i.split('-')[0] for i in image_list])
@@ -148,8 +167,8 @@ def get_task_timing(subject):
             block_cond_inds = np.array(cond_inds)[start_block_inds]
             block_cond_names = np.array(cond_names)[block_cond_inds]
 
-            # when stimuli stopped being presented, just before countdown
-            last_block_end = session['total_run_dur'] - session['count_down']
+            # when stimuli stopped being presented, end of the whole block
+            last_block_end = session['total_run_dur']
 
             print('Run is %d seconds (double check this makes sense with your TRs!)'%session['total_run_dur'])
 
