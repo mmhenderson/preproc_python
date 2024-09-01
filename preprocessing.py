@@ -8,11 +8,12 @@ import scipy
 import nibabel as nib
 
 # change these depending on project, etc.
-project_root = '/user_data/mmhender/data_UW/'
-retino_path = '/user_data/mmhender/retino_data/ANAT/'
+# project_root = '/user_data/mmhender/data_UW/'
+project_root = '/user_data/mmhender/data_featsynth/'
+retino_path = '/lab_data/hendersonlab/retino_data/ANAT/'
 
 # just make sure we're loading the right version of these modules
-codepath = '/user_data/mmhender/preproc_code/'
+codepath = '/lab_data/hendersonlab/preproc_code/'
 sys.path.insert(0, codepath)
 
 from preproc_python import file_utils
@@ -85,7 +86,7 @@ def get_session_nums(subject):
 
 
 
-def get_session_info(subject):
+def get_session_info(subject, do_topup = True):
     
     # this replaces the 'runs.list' in original matlab code.
     
@@ -107,7 +108,8 @@ def get_session_info(subject):
 
     for ss in sess_nums:
 
-        raw_folder = os.path.join(project_root, 'DataRaw', subject, 'Sess%02d'%ss)
+        # raw_folder = os.path.join(project_root, 'DataRaw', subject, 'Sess%02d'%ss)
+        raw_folder = os.path.join(project_root, 'DataRaw', subject, 'Sess%01d'%ss)
 
         # This is a pd dataframe that we already made.
         # It has info about which runs we did in which order.
@@ -129,8 +131,10 @@ def get_session_info(subject):
         # figure out names of files that are input to subsequent processing
         raw_niis = [np.array(run_info['nifti_fn'])[rr] for rr in func_inds]
 
-        # outstr = '_topup' # if we do unwarping, need this string
-        outstr = '' # otherwise, empty string
+        if do_topup:
+            outstr = '_topup' # if we do unwarping, need this string
+        else:
+            outstr = '' # otherwise, empty string
         ext  = '.nii.gz'
         input_niis = np.array([r.split(ext)[0] + outstr + ext for r in raw_niis])
 
@@ -290,7 +294,7 @@ def adjust_sess2anat_reg(subject, debug=False):
     
     # Note that if scan protocols change, we might need to edit this.
     # Always check your volumes to make sure it's what you expect!
-    # check_alignment.ipynb
+    # preproc_code/notebooks/check_alignment.ipynb
     
     preproc_folder = os.path.join(project_root, 'DataPreproc', subject)
 
