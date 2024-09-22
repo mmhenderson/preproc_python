@@ -6,7 +6,8 @@ from datetime import datetime
 
 # where my topup script is. 
 # Other users can make a copy of the script and edit this path.
-topup_script_path = '/lab_data/hendersonlab/preproc_code/preproc_python/unwarp/run_topup_forSiemens'
+# topup_script_path = '/lab_data/hendersonlab/preproc_code/preproc_python/unwarp/run_topup_forSiemens'
+topup_script_path = '/lab_data/hendersonlab/preproc_code/preproc_python/unwarp/run_topup_forSiemens_MMH'
 
 
 def do_topup(inpath, do_moco = False):
@@ -39,8 +40,10 @@ def do_topup(inpath, do_moco = False):
     func_inds = [i for i in np.arange(run_info.shape[0]) if 'fmap' not in np.array(run_info['run_type'])[i]]
     
     # these are the field maps we will use
-    fmap_fwd_inds = [i for i in np.arange(run_info.shape[0]) if 'fmap_PA' in np.array(run_info['run_type'])[i]]
-    fmap_rev_inds = [i for i in np.arange(run_info.shape[0]) if 'fmap_AP' in np.array(run_info['run_type'])[i]]
+    # important: AP must be first or "forward"
+    # AP is same phase-encoding direction as our functional scans.
+    fmap_fwd_inds = [i for i in np.arange(run_info.shape[0]) if 'fmap_AP' in np.array(run_info['run_type'])[i]]
+    fmap_rev_inds = [i for i in np.arange(run_info.shape[0]) if 'fmap_PA' in np.array(run_info['run_type'])[i]]
 
     # looping over scans.
     for ii, fi in enumerate(func_inds):

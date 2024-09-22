@@ -18,7 +18,7 @@ cd /lab_data/hendersonlab/preproc_code/
 
 # sub=S01
 # sub_retino=AB
-
+# 
 sub=S02
 sub_retino=AC
 

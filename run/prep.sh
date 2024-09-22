@@ -9,18 +9,21 @@
 
 source /user_data/mmhender/fmriproc_env/bin/activate
 
-# change this path
-ROOT=/user_data/mmhender/
+# where your copy of preprocessing code lives
+code_path=/lab_data/hendersonlab/preproc_code/
+cd $code_path
 
-cd ${ROOT}preproc_code/
+# can change this path - where your data lives
+data_path=/lab_data/hendersonlab/data_featsynth
 
-sub=S01
-sess_list=(Sess2)
+sub=S02
+# sess_list=(Sess1 Sess2)
+sess_list=(Sess4)
 
 for sess in ${sess_list[@]}
 do
 
-    inpath=${ROOT}data_featsynth/DataRaw/${sub}/${sess}
+    inpath=${data_path}/DataRaw/${sub}/${sess}
     echo ${inpath}
 
     # python3 -c 'from preproc_python import prep_data; prep_data.process_tar_raw("'${inpath}'")'  

@@ -9,7 +9,7 @@ import nibabel as nib
 
 # change these depending on project, etc.
 # project_root = '/user_data/mmhender/data_UW/'
-project_root = '/user_data/mmhender/data_featsynth/'
+project_root = '/lab_data/hendersonlab/data_featsynth/'
 retino_path = '/lab_data/hendersonlab/retino_data/ANAT/'
 
 # just make sure we're loading the right version of these modules
@@ -138,6 +138,12 @@ def get_session_info(subject, do_topup = True):
         ext  = '.nii.gz'
         input_niis = np.array([r.split(ext)[0] + outstr + ext for r in raw_niis])
 
+        if do_topup:
+            # check the files exist (this is a check in case you forgot to run topups)
+            for f in input_niis:
+                if not os.path.exists(f):
+                    raise RuntimeError('\n%s does not exist.\nMaybe you need to run unwarping first?\n'%f)
+                
         rtmp['raw_fn'] = raw_niis
         rtmp['input_fn'] = input_niis
         
@@ -193,7 +199,7 @@ def make_reg_templates(subject, debug=False):
             first_run_ind = np.where(np.array((run_info_allsess['session']==ss) & \
                               (run_info_allsess['num_in_session']==1)))[0][0]
 
-            first_nii_file = np.array(run_info_allsess['raw_fn'])[first_run_ind]
+            first_nii_file = np.array(run_info_allsess['input_fn'])[first_run_ind]
 
             # fslroi with (0, 1) means (start at time 0, take 1 volume)
             # https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/Fslutils

@@ -13,9 +13,10 @@ echo $SLURM_NODELIST
 source /user_data/mmhender/fmriproc_env/bin/activate
 
 # change this path
-cd /user_data/mmhender/preproc_code/
+cd /lab_data/hendersonlab/preproc_code/
 
-subs=(S01 S02)
+# subs=(S01 S02)
+subs=(S02)
 
 # module load fsl-6.0.3
 module load freesurfer-7.1.0
