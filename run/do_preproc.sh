@@ -13,14 +13,16 @@ echo $SLURM_NODELIST
 source /user_data/mmhender/fmriproc_env/bin/activate
 
 # change this path
-cd /lab_data/hendersonlab/preproc_code/
+cd /lab_data/hendersonlab/code_featsynth/preproc_code/
 
 
 # sub=S01
 # sub_retino=AB
 # 
-sub=S02
-sub_retino=AC
+# sub=S03
+sub=S04
+# sub_retino=AD
+sub_retino=AE
 
 debug=0
 

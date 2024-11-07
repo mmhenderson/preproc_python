@@ -13,7 +13,7 @@ sys.path.insert(0, codepath)
 from preproc_python import file_utils
 
 # project_root = '/user_data/mmhender/data_UW/'
-project_root = '/user_data/mmhender/data_featsynth/'
+project_root = '/lab_data/hendersonlab/data_featsynth/'
 retino_path = '/lab_data/hendersonlab/retino_data/ANAT/'
 
 run_type='fLoc'
@@ -135,7 +135,7 @@ def get_task_timing(subject):
 
             # Getting a list of all the images that were shown, and their onsets in sec
             # these are individual images within each block.
-            if n_runs>1:
+            if len(np.array(session['sequence']['stim_names']).shape)>1:
                 # if >1 run, this is an array [n_images x n_runs]
                 image_list = np.array(session['sequence']['stim_names'])[:,ri]
                 stim_onsets = np.array(session['sequence']['stim_onsets'])[:,ri]
@@ -147,7 +147,7 @@ def get_task_timing(subject):
             # adjust for time of the countdown period
             count_down = session['count_down']
             stim_onsets = stim_onsets + count_down
-            
+
             # Then figure out condition of each image.
             # Assumes your image names are formatted like <cond>-<number>
             cond_list = np.array([i.split('-')[0] for i in image_list])

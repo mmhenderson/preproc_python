@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=tarrq
+#SBATCH --partition=cpu
 #SBATCH --gres=gpu:0
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=1
@@ -10,15 +10,16 @@
 source /user_data/mmhender/fmriproc_env/bin/activate
 
 # where your copy of preprocessing code lives
-code_path=/lab_data/hendersonlab/preproc_code/
+code_path=/lab_data/hendersonlab/code_featsynth/preproc_code/
 cd $code_path
 
 # can change this path - where your data lives
 data_path=/lab_data/hendersonlab/data_featsynth
 
-sub=S02
-# sess_list=(Sess1 Sess2)
-sess_list=(Sess4)
+sub=S04
+# sess_list=(Sess3 Sess4)
+sess_list=(Sess2)
+# sess_list=(Sess1)
 
 for sess in ${sess_list[@]}
 do
