@@ -4,7 +4,8 @@ import pandas as pd
 import nibabel as nib
 
 # change this depending on project, etc.
-project_root = '/lab_data/hendersonlab/data_featsynth/'
+project_root = '/home/lab/hendersonlab/data_featsynth/'
+# project_root = '/lab_data/hendersonlab/data_featsynth/'
 
 
 def get_data_concat_maintask(ss):

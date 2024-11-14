@@ -9,11 +9,12 @@ import nibabel as nib
 
 # change these depending on project, etc.
 # project_root = '/user_data/mmhender/data_UW/'
-project_root = '/lab_data/hendersonlab/data_featsynth/'
-retino_path = '/lab_data/hendersonlab/retino_data/ANAT/'
+project_root = '/home/lab/hendersonlab/data_featsynth/'
+# project_root = '/lab_data/hendersonlab/data_featsynth/'
+retino_path = '/home/lab/hendersonlab/retino_data/ANAT/'
 
 # just make sure we're loading the right version of these modules
-codepath = '/lab_data/hendersonlab/preproc_code/'
+codepath = '/home/lab/hendersonlab/code_featsynth/preproc_code/'
 sys.path.insert(0, codepath)
 
 from preproc_python import file_utils

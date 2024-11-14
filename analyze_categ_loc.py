@@ -7,7 +7,8 @@ import scipy.io
 
 
 # just make sure we're loading the right version of these modules
-codepath = '/lab_data/hendersonlab/preproc_code/'
+codepath = '/home/lab/hendersonlab/code_featsynth/preproc_code/'
+# codepath = '/lab_data/hendersonlab/preproc_code/'
 sys.path.insert(0, codepath)
 
 from preproc_python import file_utils

@@ -5,7 +5,8 @@ import nibabel as nib
 import scipy.stats
 
 # change this depending on project, etc.
-project_root = '/lab_data/hendersonlab/data_featsynth/'
+project_root = '/home/lab/hendersonlab/data_featsynth/'
+# project_root = '/lab_data/hendersonlab/data_featsynth/'
 
 
 def load_main_task_labels(ss):

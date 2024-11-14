@@ -1,3 +1,4 @@
+import nibabel
 import numpy as np
 import os, sys
 import subprocess
@@ -181,7 +182,7 @@ def get_run_info(inpath):
         tstring = datetime.strftime(datetime.strptime(time_raw, '%H%M%S'), '%I:%M %p')
 
         # Putting these elements into our big dataframe, one run at a time
-        run_info = run_info.append(pd.DataFrame({'dir_name': nd, \
+        run_info = pd.concat([run_info, pd.DataFrame({'dir_name': nd, \
                                                  'run_type': run_type, \
                                                  'run_number': run_number, \
                                                  'date_raw': date_raw,
@@ -192,8 +193,21 @@ def get_run_info(inpath):
                                                  'nifti_fn': full_name, \
                                                  'nTRs': nTRs, \
                                                  'TR_length': tr_length, 
-                                                }, \
-                                               index = [di]))
+                                                }, index = [di])])
+        # NEWER pandas wants above code, older pandas wanted below
+        # run_info = run_info.append(pd.DataFrame({'dir_name': nd, \
+        #                                          'run_type': run_type, \
+        #                                          'run_number': run_number, \
+        #                                          'date_raw': date_raw,
+        #                                          'dstring': dstring, \
+        #                                          'time_raw': time_raw,
+        #                                          'tstring': tstring, \
+        #                                          'size_mb': size_mb, \
+        #                                          'nifti_fn': full_name, \
+        #                                          'nTRs': nTRs, \
+        #                                          'TR_length': tr_length, 
+        #                                         }, \
+        #                                        index = [di]))
 
     # now sorting by time within this session.
 
