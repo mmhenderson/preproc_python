@@ -12,8 +12,8 @@ code_path=/home/lab/hendersonlab/code_featsynth/preproc_code/
 cd $code_path
 
 
-sub=S04
-sub_retino=AE
+sub=S03
+sub_retino=AD
 
 debug=0
 

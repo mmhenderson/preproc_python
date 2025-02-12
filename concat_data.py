@@ -20,7 +20,12 @@ def get_data_concat_maintask(ss):
     subject = 'S%02d'%ss
 
     # hard code this. will need to adjust for different tasks.
-    nTRs = 284
+    # this changes depending on experiment
+    if ss<=2:     
+        nTRs = 284 # first version
+    else:
+        nTRs = 344; # newer version
+
     
     # this is all the timing information. computed from behavioral .mat files.
     behav_data_folder = os.path.join(project_root, 'DataBehavior', subject)
@@ -36,6 +41,26 @@ def get_data_concat_maintask(ss):
     run_info_allsess = pd.read_csv(all_info_fn)
     
     runs_maintask = run_info_allsess[run_info_allsess['run_type']=='vMain']
+
+    # Now I'm sorting by run number within each session. 
+    # Usually the runs are already in this order, but if we ever collected runs in the wrong order, 
+    # like having to repeat a run at end of session, then we can fix it here. 
+    # I always leave them in actual time order up to this point because it makes most sense with preprocessing 
+    # procedure. But at this point we're done preprocessing, so put them in "run" order from now on...
+    runs_maintask_sorted = runs_maintask.iloc[[]]
+    sess = runs_maintask['date_raw']
+    
+    for ses in np.unique(sess):
+    
+        r = runs_maintask[sess==ses]
+        sorder_runs = np.argsort(np.array(r['run_number']))
+        if np.any(sorder_runs!=np.arange(len(sorder_runs))):
+            print('warning: some runs were collected in different order. Switching them back now...')
+            print(np.array(r['run_number']), sorder_runs)
+        runs_maintask_sorted = pd.concat([runs_maintask_sorted, r.iloc[sorder_runs]])
+    
+    print(runs_maintask_sorted)
+    
 
     # get ROI definitions here.
     roi_masks = get_ROI_masks(ss)
@@ -53,18 +78,22 @@ def get_data_concat_maintask(ss):
     preproc_data_folder = os.path.join(project_root, 'DataPreproc', subject)
     
     n_runs = len(runs_maintask)
+
     
     for ri in range(n_runs):
         
         # this is the final version of the file, after whatever steps of preprocessing have been done to it.
         final_preproc_file = os.path.join(preproc_data_folder, \
-                                          np.array(runs_maintask['reg_mc_det_fn'])[ri])
+                                          np.array(runs_maintask_sorted['reg_mc_det_fn'])[ri])
         print('Loading from %s'%final_preproc_file)
         sys.stdout.flush()
-        
+
+        # try:
         dat = np.array(nib.load(final_preproc_file).get_fdata())
         assert(dat.shape[3]==nTRs)
-        
+        # except:
+        #     continue
+            
         # reshape the data. this has to match the ordering in the "ravel" command above.
         dat_reshape = np.reshape(dat, [n_vox_total, nTRs], order='C').T
         
@@ -85,7 +114,7 @@ def get_data_concat_maintask(ss):
     # calling this "DataConcat" because we have concatenated runs
     save_folder = os.path.join(project_root, 'DataConcat')
     if not os.path.exists(save_folder):
-        os.path.makedirs(save_folder)
+        os.makedirs(save_folder)
     save_data_fn = os.path.join(save_folder, '%s_maintask_concat.npy'%subject)
 
     print('Saving to %s'%save_data_fn)

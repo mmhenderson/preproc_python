@@ -14,13 +14,13 @@ sys.path.insert(0, codepath)
 from preproc_python import file_utils
 
 # project_root = '/user_data/mmhender/data_UW/'
-project_root = '/lab_data/hendersonlab/data_featsynth/'
-retino_path = '/lab_data/hendersonlab/retino_data/ANAT/'
+project_root = '/home/lab/hendersonlab/data_featsynth/'
+retino_path = '/home/lab/hendersonlab/retino_data/ANAT/'
 
 run_type='fLoc'
 
 
-def analyze_loc(subject):
+def analyze_loc(subject, subject_FS):
     
     get_task_timing(subject)
     
@@ -29,6 +29,8 @@ def analyze_loc(subject):
     run_glm_higherlevel(subject)
     
     organize_outputs(subject)
+
+    make_surfaces(subject, subject_FS)
     
 
 def get_task_timing(subject):
@@ -553,3 +555,57 @@ def organize_outputs(subject):
             print(cmd)
             sys.stdout.flush()
             err = subprocess.call(cmd, shell=True)
+
+
+
+def make_surfaces(subject, subject_FS, debug=False):
+
+    # Projecting my t-statistic maps, which are in 3D volume space originally, into surface space
+    # These files can then be loaded in freeview to plot the data on inflated surface.
+
+    
+    preproc_folder = os.path.join(project_root, 'DataPreproc', subject)
+    
+    all_info_fn = os.path.join(preproc_folder, 'run_info_allsess.csv')
+    
+    # this is where outputs of GLM are saved (t-stats)
+    input_folder = os.path.join(project_root, 'CategLocAnalysis', subject, 'summary_stats')
+    inputs = os.listdir(input_folder)
+    # inputs = [i for i in inputs if (('AllSessions' in i) and ('proj' not in i))]
+    inputs = [i for i in inputs if (('proj' not in i))]
+    
+    surf = 'white'
+    # surf = 'pial'
+    
+    # loop over these inputs, and make surface files that we can load into freeview
+    for i in inputs:
+    
+        input_vol_file = os.path.join(input_folder, i)
+    
+        # do this for each hemisphere separately
+        for hemi in ['lh','rh']:            
+            
+            new = i.split('.nii.gz')[0] + '_proj_%s_%s'%(hemi, surf) + '.nii'
+            
+            proj_surf_file = os.path.join(input_folder, new)
+    
+            if os.path.exists(proj_surf_file):
+                print('%s already exists, skipping'%(proj_surf_file))
+                continue
+    
+            # Need this file: it tells us how to map from functional to anatomical space
+            # Made during preprocessing.py
+            reg_file = os.path.join(preproc_folder, 'Sess01_func2anat_xfm.dat')
+    
+            # project to surface 
+            cmd = 'mri_vol2surf ' + \
+                  '--src %s '%(input_vol_file) + \
+                  '--out %s '%(proj_surf_file) + \
+                  '--srcreg %s '%(reg_file) + \
+                  '--out_type .surf ' + \
+                  '--hemi %s --surf %s'%(hemi, surf)
+            
+            print(cmd)
+            sys.stdout.flush()
+            if not debug:
+                err = subprocess.call(cmd, shell=True)

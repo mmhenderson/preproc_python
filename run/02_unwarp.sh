@@ -14,8 +14,9 @@ cd $code_path
 # can change this path - where your data lives
 data_path=/home/lab/hendersonlab/data_featsynth
 
-sub=S03
-sess_list=(Sess1 Sess2 Sess3 Sess4)
+sub=S07
+# sess_list=(Sess1 Sess2 Sess3 Sess4)
+sess_list=(Sess1 Sess2 Sess3)
 
 
 # stuff commented out below was to make it work on mind cluster. should not

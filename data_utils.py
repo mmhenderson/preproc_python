@@ -58,7 +58,12 @@ def load_main_task_data(ss, make_time_resolved = True):
     # defining some timing stuff...
     
     # how many TRs in the task
-    nTRs = 284;
+    if ss<=2:     
+        nTRs = 284 # first version
+    else:
+        nTRs = 344; # newer version
+
+    
     
     # which TRs am i averaging over? From the target onset time.
     avgTRs_targ = [3, 7];

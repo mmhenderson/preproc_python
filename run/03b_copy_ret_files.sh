@@ -10,8 +10,8 @@ source activate /home/lab/miniconda3/envs/fmrienv
 code_path=/home/lab/hendersonlab/code_featsynth/preproc_code/
 cd $code_path
 
-sub=S03
-sub_retino=AD
+sub=S06
+sub_retino=AG
 
 debug=0
 

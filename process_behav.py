@@ -67,6 +67,8 @@ def process_runs_maintask(ss):
                                          'date_raw','dstring',\
                                          'time_raw', 'tstring', \
                                          'length_sec', 'avg_acc'])
+
+    n_runs_expected = 12;
     
     for ses in sess_nums:
         
@@ -91,24 +93,36 @@ def process_runs_maintask(ss):
         sess_in_task = [int(f.split('Sess')[1][0:2]) for f in files]
     
         run_in_task = [int(f.split('Run')[1][0:2]) for f in files]
+        assert(np.all(np.sort(run_in_task)==np.arange(1, n_runs_expected+1)))
+        # make sure there is exactly one of each run number
+        # if this condition is not met, we need to check the behav data to see what's wrong.
+        # it might be that we missed a run, or duplicated a run somehow.
+
         
         subject_check = np.array([f.split('_')[0] for f in files])
         # print(subject_check, subject)
         assert(np.all(subject_check==subject))
     
         # sort by time at which they were collected
-        sorder = np.argsort(np.array(time_raw))
+        sorder_time = np.argsort(np.array(time_raw))
        
         # the run numbers within a given session should always be increasing by steps of 1.
-        # check that this is true. if not, could mean we have a duplicate file.
-        # OR that we collected runs in wrong order. or entered wrong run number
-        if not np.all(np.diff(np.array(run_in_task)[sorder])==1):
+        # check that this is true. if not, could mean we collected runs in wrong order. 
+        # This actually happens sometimes if we needed to re-do a run, so it can be fine.
+        # We just have to make sure that the mri data and behav data are aligned right, which
+        # will be addressed later in preproc code.
+        if not np.all(np.diff(np.array(run_in_task)[sorder_time])==1):
             print('WARNING: you may have either a duplicate or transposed file for %s session %s'%(subject, ses))
-            print(np.array(run_in_task)[sorder])
-            
+            print(np.array(run_in_task)[sorder_time])
+
+        # now sorting by ascending run number
+        sorder = np.argsort(run_in_task)
+
         
         for ii, fi in enumerate(sorder):
-    
+
+            print(os.path.join(subfolder, files[fi]))
+            
             p = file_utils.load_mat_behav_data(os.path.join(subfolder, files[fi]), varname='p')
             assert(len(p)==1)
             p = p[0]
@@ -151,7 +165,22 @@ def cross_check_behav_fmri_maintask(ss):
     behav_data_folder = os.path.join(project_root, 'DataBehavior', subject)
     filename_load = os.path.join(behav_data_folder, '%s_maintask_behav_run_info.csv'%subject)
     behav_run_info = pd.read_csv(filename_load)
+
+    # sort the array now by TIME of when files were collected
+    # this is usually same as its usual order, EXCEPT if the files were ever collected in a funny order (like if 
+    # we have to redo a run at end of session). The above .csv file always goes in run number order ascending, 
+    # while the MRI data file .csv file (loaded next) goes in actual time order. 
+    # so we want to put this in actual time order so we can compare against mri data files.
+    behav_run_info_timesorted = behav_run_info.iloc[[]]
+    sess = behav_run_info['sess_in_task']
+
+    for ses in np.unique(sess):
     
+        b = behav_run_info[sess==ses]
+        sorder_time = np.argsort(b['time_raw'])
+        behav_run_info_timesorted = pd.concat([behav_run_info_timesorted, b.iloc[sorder_time]])
+    
+        
     # now I'm going to load info about my MRI files.
     # these are in a separate CSV file that we made as part of preprocessing pipeline.
     # want to make sure we have correspondence between each main task file in behavior and MRI dataframes.
@@ -163,25 +192,25 @@ def cross_check_behav_fmri_maintask(ss):
     m = run_info_allsess[run_info_allsess['run_type'] == 'vMain']
     
     # check number of files
-    assert(m.shape[0]==behav_run_info.shape[0])
+    assert(m.shape[0]==behav_run_info_timesorted.shape[0])
     
     # check dates of files
-    np.all(np.array(m['dstring'])==np.array(behav_run_info['dstring']))
-    np.all(np.array(m['session'])==np.array(behav_run_info['sess_actual']))
+    np.all(np.array(m['dstring'])==np.array(behav_run_info_timesorted['dstring']))
+    np.all(np.array(m['session'])==np.array(behav_run_info_timesorted['sess_actual']))
 
     # checking that the lengths line up
     tr_length = 1.0;
     sec_check = np.array(m['nTRs']) * tr_length
-    assert(np.all(np.abs(sec_check - np.array(behav_run_info['length_sec']))<0.50))
+    assert(np.all(np.abs(sec_check - np.array(behav_run_info_timesorted['length_sec']))<0.50))
     
     # check that the run numbers line up.
     # for MRI data: run number is the actual number in the filename, which is entered during the scanning session.
     # for behavior data: this is the number that we enter into the matlab script.
     # if these are not perfectly lined up, might indicate we have a duplicate, or entered the wrong run number somewhere.
     print(np.array(m['run_number']))
-    print(np.array(behav_run_info['run_in_task']))
+    print(np.array(behav_run_info_timesorted['run_in_task']))
     
-    assert(np.all(np.array(m['run_number'])==np.array(behav_run_info['run_in_task'])))
+    assert(np.all(np.array(m['run_number'])==np.array(behav_run_info_timesorted['run_in_task'])))
     
     # check times... this is a bit more tricky
     # How many seconds were the start times offset by?
@@ -192,7 +221,7 @@ def cross_check_behav_fmri_maintask(ss):
     # this is just a sanity check that we're always using same behavior file that corresponds to same mri file.
     # as long as the same offset range holds, this will work. but for another setup, likely will have to edit this.
     t_mri = [datetime.strptime('%s'%t, '%H%M%S') for t in np.array(m['time_raw'])]
-    t_behav = [datetime.strptime('%s'%t, '%H%M%S') for t in np.array(behav_run_info['time_raw'])]
+    t_behav = [datetime.strptime('%s'%t, '%H%M%S') for t in np.array(behav_run_info_timesorted['time_raw'])]
     
     sec_offset = np.array([(tb - tm).seconds for [tm, tb] in zip(t_mri, t_behav)])
     print('behav and MRI time offsets in sec are:')
