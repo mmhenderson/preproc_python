@@ -4,9 +4,10 @@ import subprocess
 
 # change these depending on project, etc.
 # project_root = '/user_data/mmhender/data_UW/'
-project_root = '/home/lab/hendersonlab/data_featsynth/'
-# project_root = '/lab_data/hendersonlab/data_featsynth/'
-retino_path = '/home/lab/hendersonlab/retino_data/'
+# project_root = '/home/lab/hendersonlab/data_featsynth/'
+project_root = '/lab_data/hendersonlab/data_featsynth/'
+# retino_path = '/home/lab/hendersonlab/retino_data/'
+retino_path = '/lab_data/hendersonlab/retino_data/'
 
 # subject = 'S04'
 # subject_FS = 'AE'
@@ -78,7 +79,7 @@ def copy_anat(subject, subject_FS, sess=1):
             if os.path.exists(new_name_full):
                 print('%s already exists'%n)
             else:
-                cmd = 'cp %s %s'%(old_name_full, new_name_full)
+                cmd = 'cp -p %s %s'%(old_name_full, new_name_full)
                 print(cmd)
                 err = subprocess.call(cmd, shell=True)
 
@@ -118,7 +119,7 @@ def copy_functional(subject, subject_FS, sess=1):
             if os.path.exists(new_name_full):
                 print('%s already exists'%n)
             else:
-                cmd = 'cp %s %s'%(old_name_full, new_name_full)
+                cmd = 'cp -p %s %s'%(old_name_full, new_name_full)
                 print(cmd)
                 err = subprocess.call(cmd, shell=True)
     
@@ -145,6 +146,6 @@ def copy_behav(subject, subject_FS, sess=1):
                 print('%s already exists'%new_name_full)
         else:
         
-            cmd = 'cp %s %s'%(old_name_full, new_name_full)
+            cmd = 'cp -p %s %s'%(old_name_full, new_name_full)
             print(cmd)
             err = subprocess.call(cmd, shell=True)

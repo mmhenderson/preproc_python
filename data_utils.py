@@ -5,8 +5,8 @@ import nibabel as nib
 import scipy.stats
 
 # change this depending on project, etc.
-project_root = '/home/lab/hendersonlab/data_featsynth/'
-# project_root = '/lab_data/hendersonlab/data_featsynth/'
+# project_root = '/home/lab/hendersonlab/data_featsynth/'
+project_root = '/lab_data/hendersonlab/data_featsynth/'
 
 
 def load_main_task_labels(ss):
@@ -19,7 +19,7 @@ def load_main_task_labels(ss):
     return bdat
 
 
-def load_main_task_data(ss, make_time_resolved = True):
+def load_main_task_data(ss, make_time_resolved = True, avgTRs_targ = [3, 8]):
     
     """
     Load trial-by-trial data for all main task trials for a single subject (ss)
@@ -66,7 +66,11 @@ def load_main_task_data(ss, make_time_resolved = True):
     
     
     # which TRs am i averaging over? From the target onset time.
-    avgTRs_targ = [3, 7];
+    # avgTRs_targ = [3, 8];
+    print('Using average of TRs: [%d - %d]'%(avgTRs_targ[0], avgTRs_targ[1]))
+    # it is NOT inclusive.
+    # so TRs [3-8] is actually: 3,4,5,6,7
+    
     # in this expt: TRs are 1.0 seconds in length.
     # TRs go like...TR 0 = 0.0 seconds (time at which stim onset happened), 
     # TR 1 = 1.0 seconds after stim onset, and so on
@@ -140,6 +144,8 @@ def load_main_task_data(ss, make_time_resolved = True):
     
             # take the average of timepoints within my time window.
             # average across time, within each voxel separately
+            # print(cur_dat[window_start:window_stop, :].shape)
+            
             dat_avg[tc, :] = np.mean(cur_dat[window_start:window_stop, :], axis=0)
     
             if make_time_resolved:
@@ -167,7 +173,8 @@ def load_main_task_data(ss, make_time_resolved = True):
     main_data = dict([])
     
     # these are the areas we want to look at
-    roi_names = ['V1','V2','LOC']
+    # roi_names = ['V1','V2','LOC']
+    roi_names = list(d['roi_masks'].keys())
     hemis = ['lh', 'rh']
     
     for rname in roi_names:
@@ -176,23 +183,27 @@ def load_main_task_data(ss, make_time_resolved = True):
         # subsets of ROIs, like d=dorsal and v=ventral.
         # we are going to combine those sub-parts here.
         # also combine lh/rh here.
+        
+        # kk = rname
     
-        keys_include = [r for r in list(d['roi_masks'].keys()) if rname in r]
+        # keys_include = [r for r in list(d['roi_masks'].keys()) if rname in r]
     
-        print('%s, including:'%rname)
-        print(keys_include)
+        print(rname)
+        
+        # print('%s, including:'%rname)
+        # print(keys_include)
         masks = []
     
-        for kk in keys_include:
-            for hh in hemis:
-    
-                # the roi mask is defined over all voxels, in whole brain
-                mask_big = d['roi_masks'][kk][hh]
-                # we want just the part of this that corresponds to the data
-                mask_small = mask_big[d['voxel_mask_all']]
-    
-                print('    %s-%s has %d voxels'%(kk, hh, np.sum(mask_small)))
-                masks += [mask_small]
+        # for kk in keys_include:
+        for hh in hemis:
+
+            # the roi mask is defined over all voxels, in whole brain
+            mask_big = d['roi_masks'][rname][hh]
+            # we want just the part of this that corresponds to the data
+            mask_small = mask_big[d['voxel_mask_all']]
+
+            print('    %s-%s has %d voxels'%(rname, hh, np.sum(mask_small)))
+            masks += [mask_small]
     
         masks_concat = np.array(masks).astype(int)
     
@@ -207,7 +218,8 @@ def load_main_task_data(ss, make_time_resolved = True):
         # finally, use the ROI mask to pick my voxels from the epoched data.
         main_data[rname] = dict([])
         main_data[rname]['dat_avg'] = dat_avg[:, mask_use]
-        main_data[rname]['dat_by_tr'] = dat_by_tr[:, :, mask_use]
+        if make_time_resolved:
+            main_data[rname]['dat_by_tr'] = dat_by_tr[:, :, mask_use]
 
     
     return main_data

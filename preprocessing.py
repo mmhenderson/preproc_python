@@ -8,13 +8,14 @@ import scipy
 import nibabel as nib
 
 # change these depending on project, etc.
-# project_root = '/user_data/mmhender/data_UW/'
-project_root = '/home/lab/hendersonlab/data_featsynth/'
-# project_root = '/lab_data/hendersonlab/data_featsynth/'
-retino_path = '/home/lab/hendersonlab/retino_data/ANAT/'
+# project_root = '/home/lab/hendersonlab/data_featsynth/'
+project_root = '/lab_data/hendersonlab/data_featsynth/'
+# retino_path = '/home/lab/hendersonlab/retino_data/ANAT/'
+retino_path = '/lab_data/hendersonlab/retino_data/ANAT/'
 
 # just make sure we're loading the right version of these modules
-codepath = '/home/lab/hendersonlab/code_featsynth/preproc_code/'
+# codepath = '/home/lab/hendersonlab/code_featsynth/preproc_code/'
+codepath = '/lab_data/hendersonlab/code_featsynth/preproc_code/'
 sys.path.insert(0, codepath)
 
 from preproc_python import file_utils
@@ -119,6 +120,26 @@ def get_session_info(subject, do_topup = True):
         print('loading info from %s'%info_fn)
         sys.stdout.flush()
         run_info = pd.read_csv(info_fn)
+
+        if (subject=='S08') and (ss==5):
+            # i'm manually fixing the run number for this one, this was a re-do of an earlier run
+            ind_fix = run_info['run_number']==13
+            run_info.loc[ind_fix,'run_number'] = 11
+
+        if (subject=='S11') and (ss==2):
+            # i'm manually fixing the run numbers for this one, run 8 was re-done and the numbers were each shifted up by one.
+            ind_fix = run_info['run_number']==9
+            run_info.loc[ind_fix,'run_number'] = 8
+            ind_fix = run_info['run_number']==10
+            run_info.loc[ind_fix,'run_number'] = 9
+            ind_fix = run_info['run_number']==11
+            run_info.loc[ind_fix,'run_number'] = 10
+            ind_fix = run_info['run_number']==12
+            run_info.loc[ind_fix,'run_number'] = 11
+            ind_fix = run_info['run_number']==13
+            run_info.loc[ind_fix,'run_number'] = 12
+
+
 
         # find just our functional runs here.
         func_inds = [i for i in np.arange(run_info.shape[0]) if \

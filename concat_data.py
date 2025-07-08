@@ -4,9 +4,13 @@ import pandas as pd
 import nibabel as nib
 
 # change this depending on project, etc.
-project_root = '/home/lab/hendersonlab/data_featsynth/'
-# project_root = '/lab_data/hendersonlab/data_featsynth/'
+# project_root = '/home/lab/hendersonlab/data_featsynth/'
+project_root = '/lab_data/hendersonlab/data_featsynth/'
 
+codepath = '/lab_data/hendersonlab/code_featsynth/preproc_code/'
+sys.path.insert(0, codepath)
+
+from preproc_python import make_roi_volumes
 
 def get_data_concat_maintask(ss):
 
@@ -28,42 +32,50 @@ def get_data_concat_maintask(ss):
 
     
     # this is all the timing information. computed from behavioral .mat files.
+
     behav_data_folder = os.path.join(project_root, 'DataBehavior', subject)
+    filename_load = os.path.join(behav_data_folder, '%s_maintask_behav_run_info.csv'%subject)
+    print('Reading from: %s'%filename_load)
+    run_info = pd.read_csv(filename_load)
+
     filename_load = os.path.join(behav_data_folder, '%s_maintask_behav_timing_info.csv'%subject)
     print('Reading from: %s'%filename_load)
     tr_info = pd.read_csv(filename_load)
 
     n_trs_total = tr_info.shape[0]
+    n_runs_total = run_info.shape[0]
+
     
-    # this is all the information about my scanning runs.
+    # This is all the information about my scanning runs.
     preproc_folder = os.path.join(project_root, 'DataPreproc', subject)
     all_info_fn = os.path.join(preproc_folder, 'run_info_allsess.csv')
     run_info_allsess = pd.read_csv(all_info_fn)
     
     runs_maintask = run_info_allsess[run_info_allsess['run_type']=='vMain']
 
-    # Now I'm sorting by run number within each session. 
-    # Usually the runs are already in this order, but if we ever collected runs in the wrong order, 
-    # like having to repeat a run at end of session, then we can fix it here. 
-    # I always leave them in actual time order up to this point because it makes most sense with preprocessing 
-    # procedure. But at this point we're done preprocessing, so put them in "run" order from now on...
-    runs_maintask_sorted = runs_maintask.iloc[[]]
-    sess = runs_maintask['date_raw']
     
-    for ses in np.unique(sess):
+    # # Now I'm sorting by run number within each session. 
+    # # Usually the runs are already in this order, but if we ever collected runs in the wrong order, 
+    # # like having to repeat a run at end of session, then we can fix it here. 
+    # # I always leave them in actual time order up to this point because it makes most sense with preprocessing 
+    # # procedure. But at this point we're done preprocessing, so put them in "run" order from now on...
+    # runs_maintask_sorted = runs_maintask.iloc[[]]
     
-        r = runs_maintask[sess==ses]
-        sorder_runs = np.argsort(np.array(r['run_number']))
-        if np.any(sorder_runs!=np.arange(len(sorder_runs))):
-            print('warning: some runs were collected in different order. Switching them back now...')
-            print(np.array(r['run_number']), sorder_runs)
-        runs_maintask_sorted = pd.concat([runs_maintask_sorted, r.iloc[sorder_runs]])
+    # for ses in np.unique(sess):
     
-    print(runs_maintask_sorted)
+    #     r = runs_maintask[sess==ses]
+    #     sorder_runs = np.argsort(np.array(r['run_number']))
+    #     if np.any(sorder_runs!=np.arange(len(sorder_runs))):
+    #         print('warning: some runs were collected in different order. Switching them back now...')
+    #         print(np.array(r['run_number']), sorder_runs)
+    #     runs_maintask_sorted = pd.concat([runs_maintask_sorted, r.iloc[sorder_runs]])
+    
+    # print(runs_maintask_sorted)
     
 
     # get ROI definitions here.
-    roi_masks = get_ROI_masks(ss)
+    roi_masks = make_roi_volumes.get_ROI_masks(ss, threshold = True, fix_overlap = True, remove_overlapping = False)
+    
     roi_names = list(roi_masks.keys())
     hemis = list(roi_masks[roi_names[0]].keys())
     
@@ -77,14 +89,34 @@ def get_data_concat_maintask(ss):
     
     preproc_data_folder = os.path.join(project_root, 'DataPreproc', subject)
     
-    n_runs = len(runs_maintask)
+    # n_runs = len(runs_maintask)
 
+    # Looping over runs. Going in order of the run_info df, to make sure they align.
+    # Note that this is not necessarily the same sequence as the runs_maintask df. (but it can be)
+
+    for ri in range(n_runs_total):
     
-    for ri in range(n_runs):
+        # Find the run that is from the same date and same position in the session as we are expecting.
+        sess_actual = run_info['sess_actual'].iloc[ri]
+        num_in_session = run_info['num_in_session'].iloc[ri]
+    
+        # this is where in the runs_maintask dataframe my run should be.
+        mri_df_index = np.where((runs_maintask['session']==sess_actual) & (runs_maintask['num_in_session']==num_in_session))[0][0]
+
+        print(ri, mri_df_index)
+        print(runs_maintask.iloc[mri_df_index]['dstring'], run_info.iloc[ri]['dstring'])
+        print(runs_maintask.iloc[mri_df_index]['run_number'], run_info.iloc[ri]['run_in_task'])
+              
+        assert(runs_maintask.iloc[mri_df_index]['dstring'] == run_info.iloc[ri]['dstring'])
+        assert(runs_maintask.iloc[mri_df_index]['run_number'] == run_info.iloc[ri]['run_in_task'])
         
+        # print(sess_actual, num_in_session, mri_df_index)
+            
         # this is the final version of the file, after whatever steps of preprocessing have been done to it.
+        # final_preproc_file = os.path.join(preproc_data_folder, \
+                                          # np.array(runs_maintask_sorted['reg_mc_det_fn'])[ri])
         final_preproc_file = os.path.join(preproc_data_folder, \
-                                          np.array(runs_maintask_sorted['reg_mc_det_fn'])[ri])
+                                          np.array(runs_maintask['reg_mc_det_fn'])[mri_df_index])
         print('Loading from %s'%final_preproc_file)
         sys.stdout.flush()
 
@@ -123,116 +155,116 @@ def get_data_concat_maintask(ss):
                           'voxel_mask_all': voxel_mask_all})
 
 
-def get_ROI_masks(ss):
+# def get_ROI_masks(ss):
 
-    subject = 'S%02d'%ss
+#     subject = 'S%02d'%ss
         
-    # gathering my ROI definitions and turning them into masks.
+#     # gathering my ROI definitions and turning them into masks.
     
-    roi_folder = os.path.join(project_root, 'DataPreproc', subject, 'ROI_labels')
+#     roi_folder = os.path.join(project_root, 'DataPreproc', subject, 'ROI_labels')
         
-    roi_names = np.array(['V1d','V1v','V2d','V2v','LOC'])
-    hemis = np.array(['lh','rh'])
+#     roi_names = np.array(['V1d','V1v','V2d','V2v','LOC'])
+#     hemis = np.array(['lh','rh'])
     
-    roi_masks = dict([])
+#     roi_masks = dict([])
     
-    for rname in roi_names:
+#     for rname in roi_names:
         
-        roi_masks[rname] = dict([])
+#         roi_masks[rname] = dict([])
         
-        for hemi in hemis:
+#         for hemi in hemis:
     
-            mask_fn = os.path.join(roi_folder, '%s.%s.nii.gz'%(hemi, rname))
+#             mask_fn = os.path.join(roi_folder, '%s.%s.nii.gz'%(hemi, rname))
             
-            mask = np.array(nib.load(mask_fn).get_fdata())
+#             mask = np.array(nib.load(mask_fn).get_fdata())
     
-            # this is FLATTENED now - total number of voxels in one big list.
-            roi_masks[rname][hemi] = (mask==1).ravel(order='C')
+#             # this is FLATTENED now - total number of voxels in one big list.
+#             roi_masks[rname][hemi] = (mask==1).ravel(order='C')
             
     
-    # now i'm going to handle the overlap between ROIs.
-    # this happens because ROIs are defined in surface space, and they get projected back into 
-    # volume space. this can lead to overlap between neighboring areas, even if they didn't look overlapping 
-    # in our surface space.
-    # generally will just split up voxels evenly (half and half, randomly) when there is overlap.
-    # if we're using category selective areas (like LOC, FFA, and such), and also retinotopic areas, they 
-    # can overlap a lot. So we might have to make a different choice about how to 
-    # deal with overlap between them. 
+#     # now i'm going to handle the overlap between ROIs.
+#     # this happens because ROIs are defined in surface space, and they get projected back into 
+#     # volume space. this can lead to overlap between neighboring areas, even if they didn't look overlapping 
+#     # in our surface space.
+#     # generally will just split up voxels evenly (half and half, randomly) when there is overlap.
+#     # if we're using category selective areas (like LOC, FFA, and such), and also retinotopic areas, they 
+#     # can overlap a lot. So we might have to make a different choice about how to 
+#     # deal with overlap between them. 
     
-    # first dealing within the overlap within-hemifield.
+#     # first dealing within the overlap within-hemifield.
     
-    for h in hemis:
+#     for h in hemis:
         
-        for ri1, r1 in enumerate(roi_names):
+#         for ri1, r1 in enumerate(roi_names):
             
-            for r2 in roi_names[ri1+1:]:
+#             for r2 in roi_names[ri1+1:]:
     
-                overlap = roi_masks[r1][h] & roi_masks[r2][h]
+#                 overlap = roi_masks[r1][h] & roi_masks[r2][h]
                 
-                if np.sum(overlap)>0:
+#                 if np.sum(overlap)>0:
                     
-                    print('%s-%s and %s-%s have %d voxels of overlap. Splitting them up evenly...'%\
-                          (h, r1, h, r2, np.sum(overlap)))
+#                     print('%s-%s and %s-%s have %d voxels of overlap. Splitting them up evenly...'%\
+#                           (h, r1, h, r2, np.sum(overlap)))
     
-                    orig_combined_size = np.sum(roi_masks[r1][h] | roi_masks[r2][h])
+#                     orig_combined_size = np.sum(roi_masks[r1][h] | roi_masks[r2][h])
     
-                    overlap_vox = np.where(overlap)[0]
-                    # splitting every other vox. this is good because it's reproducible.
-                    # you could also do it randomly, but you would have to save the random seed. 
-                    # very important that we know exactly which voxels we grabbed here.
-                    overlap1 = overlap_vox[0::2]
-                    overlap2 = overlap_vox[1::2]
-                    print(len(overlap1), len(overlap2))
+#                     overlap_vox = np.where(overlap)[0]
+#                     # splitting every other vox. this is good because it's reproducible.
+#                     # you could also do it randomly, but you would have to save the random seed. 
+#                     # very important that we know exactly which voxels we grabbed here.
+#                     overlap1 = overlap_vox[0::2]
+#                     overlap2 = overlap_vox[1::2]
+#                     print(len(overlap1), len(overlap2))
         
-                    # remove them from the opposite roi
-                    roi_masks[r1][h][overlap2] = False
-                    roi_masks[r2][h][overlap1] = False
+#                     # remove them from the opposite roi
+#                     roi_masks[r1][h][overlap2] = False
+#                     roi_masks[r2][h][overlap1] = False
     
-                    # make sure this worked and we really fixed the overlap
-                    overlap = roi_masks[r1][h] & roi_masks[r2][h]
-                    assert(np.sum(overlap)==0)
+#                     # make sure this worked and we really fixed the overlap
+#                     overlap = roi_masks[r1][h] & roi_masks[r2][h]
+#                     assert(np.sum(overlap)==0)
     
-                    # make sure nothing else weird happened
-                    new_combined_size = np.sum(roi_masks[r1][h] | roi_masks[r2][h])
-                    assert(new_combined_size==orig_combined_size)
+#                     # make sure nothing else weird happened
+#                     new_combined_size = np.sum(roi_masks[r1][h] | roi_masks[r2][h])
+#                     assert(new_combined_size==orig_combined_size)
         
     
-    # now look for overlap across-hemifields.
-    # testing all possible pairs of ROIs for overlap.
-    # note that the majority of these have very little chance at overlapping.
-    # it's really just the bordering ones. 
+#     # now look for overlap across-hemifields.
+#     # testing all possible pairs of ROIs for overlap.
+#     # note that the majority of these have very little chance at overlapping.
+#     # it's really just the bordering ones. 
     
-    h1 = hemis[0]
-    h2 = hemis[1]
+#     h1 = hemis[0]
+#     h2 = hemis[1]
     
-    for r1 in roi_names:
+#     for r1 in roi_names:
         
-        for r2 in roi_names:
+#         for r2 in roi_names:
     
-            overlap = roi_masks[r1][h1] & roi_masks[r2][h2]
+#             overlap = roi_masks[r1][h1] & roi_masks[r2][h2]
     
-            if np.sum(overlap)>0:
+#             if np.sum(overlap)>0:
                 
-                print('%s-%s and %s-%s have %d voxels of overlap. Splitting them up evenly...'%\
-                      (h1, r1, h2, r2, np.sum(overlap)))
+#                 print('%s-%s and %s-%s have %d voxels of overlap. Splitting them up evenly...'%\
+#                       (h1, r1, h2, r2, np.sum(overlap)))
 
-                orig_combined_size = np.sum(roi_masks[r1][h1] | roi_masks[r2][h2])
+#                 orig_combined_size = np.sum(roi_masks[r1][h1] | roi_masks[r2][h2])
     
-                overlap_vox = np.where(overlap)[0]
-                # splitting every other voxel again
-                overlap1 = overlap_vox[0::2]
-                overlap2 = overlap_vox[1::2]
-                print(len(overlap1), len(overlap2))
+#                 overlap_vox = np.where(overlap)[0]
+#                 # splitting every other voxel again
+#                 overlap1 = overlap_vox[0::2]
+#                 overlap2 = overlap_vox[1::2]
+#                 print(len(overlap1), len(overlap2))
     
-                # remove them from the opposite roi
-                roi_masks[r1][h1][overlap2] = False
-                roi_masks[r2][h2][overlap1] = False
+#                 # remove them from the opposite roi
+#                 roi_masks[r1][h1][overlap2] = False
+#                 roi_masks[r2][h2][overlap1] = False
                 
-                overlap = roi_masks[r1][h1] & roi_masks[r2][h2]
-                assert(np.sum(overlap)==0)
+#                 overlap = roi_masks[r1][h1] & roi_masks[r2][h2]
+#                 assert(np.sum(overlap)==0)
 
-                # make sure nothing else weird happened
-                new_combined_size = np.sum(roi_masks[r1][h1] | roi_masks[r2][h2])
-                assert(new_combined_size==orig_combined_size)
+#                 # make sure nothing else weird happened
+#                 new_combined_size = np.sum(roi_masks[r1][h1] | roi_masks[r2][h2])
+#                 assert(new_combined_size==orig_combined_size)
         
-    return roi_masks
+#     return roi_masks

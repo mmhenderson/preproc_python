@@ -5,12 +5,12 @@ from datetime import datetime
 import copy
 
 # change this depending on project, etc.
-project_root = '/home/lab/hendersonlab/data_featsynth/'
-# project_root = '/lab_data/hendersonlab/data_featsynth/'
+# project_root = '/home/lab/hendersonlab/data_featsynth/'
+project_root = '/lab_data/hendersonlab/data_featsynth/'
 
 # make sure we're loading the right version of these modules
-codepath = '/home/lab/hendersonlab/code_featsynth/preproc_code/'
-# codepath = '/lab_data/hendersonlab/preproc_code/'
+# codepath = '/home/lab/hendersonlab/code_featsynth/preproc_code/'
+codepath = '/lab_data/hendersonlab/code_featsynth/preproc_code/'
 sys.path.insert(0, codepath)
 
 from preproc_python import file_utils
@@ -53,6 +53,9 @@ def process_runs_maintask(ss):
     # where is the behav data?
     behav_data_folder = os.path.join(project_root, 'DataBehavior', subject)
     
+    # these are the session folders I have.
+    # Note that these session folder numbers do not necessarily align with the session in task. 
+    # BC retinotopy is usually Sess1 folder, so task starts in Sess2.
     sfolders = os.listdir(behav_data_folder)
     sess_nums = [int(s.split('Sess')[1]) for s in sfolders if 'Sess' in s]
     sess_nums = np.sort(np.array(sess_nums))
@@ -67,9 +70,15 @@ def process_runs_maintask(ss):
                                          'date_raw','dstring',\
                                          'time_raw', 'tstring', \
                                          'length_sec', 'avg_acc'])
-
+    
+    n_sessions_expected = 3;
     n_runs_expected = 12;
     
+    all_files = []
+    all_num_in_sess = []
+    all_sess_actual = []
+    
+    # this is a loop over whichever physical sessions were performed (incl retinotopy)
     for ses in sess_nums:
         
         subfolder = os.path.join(behav_data_folder, 'Sess%d'%(ses))
@@ -79,54 +88,66 @@ def process_runs_maintask(ss):
         files = [f for f in files if task_name in f]
         # print(files)
         print('Sess %d: found %d behav files for main task'%(ses, len(files)))
-
-        if len(files)==0:
-            continue
-            
-        date_raw = [f.split('.mat')[0][-13:-7] for f in files]
-        dstring = [datetime.strftime(datetime.strptime(d, '%y%m%d'), '%D') for d in date_raw]
     
+        if (ses>1) & (len(files)!=n_runs_expected):
+            print('WARNING: num runs is different than expected for %s session %d. Check this!'%(subject, ses))
+    
+        all_files += [files]
         
         time_raw = [f.split('.mat')[0][-6:] for f in files]
-        tstring = [datetime.strftime(datetime.strptime(t, '%H%M%S'), '%I:%M %p') for t in time_raw]
-        
-        sess_in_task = [int(f.split('Sess')[1][0:2]) for f in files]
+        time_raw = np.array([float(t) for t in time_raw])
     
-        run_in_task = [int(f.split('Run')[1][0:2]) for f in files]
-        assert(np.all(np.sort(run_in_task)==np.arange(1, n_runs_expected+1)))
-        # make sure there is exactly one of each run number
-        # if this condition is not met, we need to check the behav data to see what's wrong.
-        # it might be that we missed a run, or duplicated a run somehow.
-
-        
-        subject_check = np.array([f.split('_')[0] for f in files])
-        # print(subject_check, subject)
-        assert(np.all(subject_check==subject))
+        # apply argsort twice, it tells us the rank of each element
+        torder = np.argsort(np.argsort(time_raw)) + 1
+        print(time_raw, torder)
     
-        # sort by time at which they were collected
-        sorder_time = np.argsort(np.array(time_raw))
-       
-        # the run numbers within a given session should always be increasing by steps of 1.
-        # check that this is true. if not, could mean we collected runs in wrong order. 
-        # This actually happens sometimes if we needed to re-do a run, so it can be fine.
-        # We just have to make sure that the mri data and behav data are aligned right, which
-        # will be addressed later in preproc code.
-        if not np.all(np.diff(np.array(run_in_task)[sorder_time])==1):
-            print('WARNING: you may have either a duplicate or transposed file for %s session %s'%(subject, ses))
-            print(np.array(run_in_task)[sorder_time])
-
-        # now sorting by ascending run number
-        sorder = np.argsort(run_in_task)
-
+        all_num_in_sess += [torder]
+        all_sess_actual += [ses * np.ones(len(files),)]
         
-        for ii, fi in enumerate(sorder):
+    
+    all_files = np.concatenate(all_files)
+    all_num_in_sess = np.concatenate(all_num_in_sess)
+    all_sess_actual = np.concatenate(all_sess_actual)
 
-            print(os.path.join(subfolder, files[fi]))
+    ii = 0;
+    # now this is a loop over "session in task", which always goes 1,2,3
+    for sess_in_task in np.arange(1, n_sessions_expected+1):
+    
+        for run_in_task in np.arange(1, n_runs_expected+1):
+    
+            file_index = np.where(['Sess%02d_Run%02d'%(sess_in_task, run_in_task) in file for file in all_files])[0]
+            if len(file_index)==0:
+                print('WARNING: Sess%02d Run%02d is missing, skipping this'%(sess_in_task, run_in_task))
+                continue
             
-            p = file_utils.load_mat_behav_data(os.path.join(subfolder, files[fi]), varname='p')
+            # There has to be exactly one of these runs. If there are two, this means you have a duplicate.
+            # Usually this would be if there was a mistake with one, so you need to remove that one.
+            assert(len(file_index)==1)
+                
+            file_index = file_index[0]
+            
+            f = all_files[file_index]
+    
+            print(f)
+            
+            date_raw = f.split('.mat')[0][-13:-7]
+            dstring = datetime.strftime(datetime.strptime(date_raw, '%y%m%d'), '%D')
+            
+            time_raw = f.split('.mat')[0][-6:]
+            tstring = datetime.strftime(datetime.strptime(time_raw, '%H%M%S'), '%I:%M %p')
+            
+            subject_check = f.split('_')[0]
+            assert(subject_check==subject)
+    
+            subfolder = os.path.join(behav_data_folder, 'Sess%d'%(all_sess_actual[file_index]))
+            
+            print(os.path.join(subfolder, f))
+            
+            p = file_utils.load_mat_behav_data(os.path.join(subfolder, f), varname='p')
             assert(len(p)==1)
             p = p[0]
-    
+            
+            ii+=1
             # sess_in_task and run_in_task are both related to what was entered in the experimental task code.
             # num_in_session and sess_actual are related to the actual date on which runs were collected.
             # So, for some subjects Sess01 is actually the retinotopy session, and Sess02 is the first 
@@ -134,26 +155,147 @@ def process_runs_maintask(ss):
             # And sometimes we might have had to split functional runs for a given "session" 
             # across days - for example collecting runs 1-13 in session 3, and runs 14-16 in session 4. 
             # then sess_actual would be different for those days, but sess_in_task would be the same.
-            behav_run_info = pd.concat([behav_run_info, pd.DataFrame({'file_name': files[fi], \
-                                                     'sess_in_task': sess_in_task[fi], \
-                                                     'run_in_task': run_in_task[fi],\
-                                                     'num_in_session': ii+1, \
-                                                     'sess_actual': ses, \
-                                                     'date_raw': date_raw[fi], \
-                                                     'dstring': dstring[fi], \
-                                                     'time_raw': time_raw[fi], \
-                                                     'tstring': tstring[fi], \
+            behav_run_info = pd.concat([behav_run_info, pd.DataFrame({'file_name': f, \
+                                                     'sess_in_task': sess_in_task, \
+                                                     'run_in_task': run_in_task,\
+                                                     'num_in_session': all_num_in_sess[file_index], \
+                                                     'sess_actual': all_sess_actual[file_index], \
+                                                     'date_raw': date_raw, \
+                                                     'dstring': dstring, \
+                                                     'time_raw': time_raw, \
+                                                     'tstring': tstring, \
                                                      'length_sec': p['total_exp_time'], \
                                                      'avg_acc': p['accuracy'], \
                                                         }, \
                                                        index = [ii])])
-    
-    
+        
     print('All sessions: %d runs of main task total'%(behav_run_info.shape[0]))
 
     filename_save = os.path.join(behav_data_folder, '%s_maintask_behav_run_info.csv'%subject)
     print('Saving to: %s'%filename_save)
     behav_run_info.to_csv(filename_save, index=False)
+
+
+# def process_runs_maintask(ss):
+
+#     # this is where we gather info about the individual runs in the experiment.
+    
+#     # find all main task behavioral (.mat) files, and make a dataframe with info about the files.
+#     # not actually processing details of each run yet, just filenames/when they were collected.
+    
+#     # save a csv file n_runs long
+    
+#     # subject should be like: 1, 2 etc
+
+#     subject = 'S%02d'%ss
+    
+#     # where is the behav data?
+#     behav_data_folder = os.path.join(project_root, 'DataBehavior', subject)
+    
+#     sfolders = os.listdir(behav_data_folder)
+#     sess_nums = [int(s.split('Sess')[1]) for s in sfolders if 'Sess' in s]
+#     sess_nums = np.sort(np.array(sess_nums))
+    
+#     # name of the task that we're analyzing.
+#     # this is a string that has to be in all the filenames of your behavioral .mat files
+#     # can change this to match your filenames for your task.
+#     task_name = 'maintask_fMRI_pilot'
+    
+#     behav_run_info = pd.DataFrame(columns=['file_name', 'sess_in_task', 'run_in_task',\
+#                                            'num_in_session', 'sess_actual', \
+#                                          'date_raw','dstring',\
+#                                          'time_raw', 'tstring', \
+#                                          'length_sec', 'avg_acc'])
+
+#     n_runs_expected = 12;
+    
+#     for ses in sess_nums:
+        
+#         subfolder = os.path.join(behav_data_folder, 'Sess%d'%(ses))
+#         files = os.listdir(subfolder) 
+#         # print(files)
+#         # print(task_name)
+#         files = [f for f in files if task_name in f]
+#         # print(files)
+#         print('Sess %d: found %d behav files for main task'%(ses, len(files)))
+
+#         if len(files)==0:
+#             continue
+            
+#         date_raw = [f.split('.mat')[0][-13:-7] for f in files]
+#         dstring = [datetime.strftime(datetime.strptime(d, '%y%m%d'), '%D') for d in date_raw]
+    
+        
+#         time_raw = [f.split('.mat')[0][-6:] for f in files]
+#         tstring = [datetime.strftime(datetime.strptime(t, '%H%M%S'), '%I:%M %p') for t in time_raw]
+        
+#         sess_in_task = [int(f.split('Sess')[1][0:2]) for f in files]
+    
+#         run_in_task = [int(f.split('Run')[1][0:2]) for f in files]
+#         if not np.all(np.sort(run_in_task)==np.arange(1, n_runs_expected+1)):
+#             print('WARNING: you may have a missing or duplicated file for %s session %s'%(subject, ses))
+#             print(np.sort(run_in_task))
+#         # assert(np.all(np.sort(run_in_task)==np.arange(1, n_runs_expected+1)))
+#         # make sure there is exactly one of each run number
+#         # if this condition is not met, we need to check the behav data to see what's wrong.
+#         # it might be that we missed a run, or duplicated a run somehow.
+
+        
+#         subject_check = np.array([f.split('_')[0] for f in files])
+#         # print(subject_check, subject)
+#         assert(np.all(subject_check==subject))
+    
+#         # sort by time at which they were collected
+#         sorder_time = np.argsort(np.array(time_raw))
+       
+#         # the run numbers within a given session should always be increasing by steps of 1.
+#         # check that this is true. if not, could mean we collected runs in wrong order. 
+#         # This actually happens sometimes if we needed to re-do a run, so it can be fine.
+#         # We just have to make sure that the mri data and behav data are aligned right, which
+#         # will be addressed later in preproc code.
+#         if not np.all(np.diff(np.array(run_in_task)[sorder_time])==1):
+#             print('WARNING: you may have either a duplicate or transposed file for %s session %s'%(subject, ses))
+#             print(np.array(run_in_task)[sorder_time])
+
+#         # now sorting by ascending run number
+#         sorder = np.argsort(run_in_task)
+
+        
+#         for ii, fi in enumerate(sorder):
+
+#             print(os.path.join(subfolder, files[fi]))
+            
+#             p = file_utils.load_mat_behav_data(os.path.join(subfolder, files[fi]), varname='p')
+#             assert(len(p)==1)
+#             p = p[0]
+    
+#             # sess_in_task and run_in_task are both related to what was entered in the experimental task code.
+#             # num_in_session and sess_actual are related to the actual date on which runs were collected.
+#             # So, for some subjects Sess01 is actually the retinotopy session, and Sess02 is the first 
+#             # session of the main task. Sess02 would have: sess_actual=2, sess_in_task=1
+#             # And sometimes we might have had to split functional runs for a given "session" 
+#             # across days - for example collecting runs 1-13 in session 3, and runs 14-16 in session 4. 
+#             # then sess_actual would be different for those days, but sess_in_task would be the same.
+#             behav_run_info = pd.concat([behav_run_info, pd.DataFrame({'file_name': files[fi], \
+#                                                      'sess_in_task': sess_in_task[fi], \
+#                                                      'run_in_task': run_in_task[fi],\
+#                                                      'num_in_session': ii+1, \
+#                                                      'sess_actual': ses, \
+#                                                      'date_raw': date_raw[fi], \
+#                                                      'dstring': dstring[fi], \
+#                                                      'time_raw': time_raw[fi], \
+#                                                      'tstring': tstring[fi], \
+#                                                      'length_sec': p['total_exp_time'], \
+#                                                      'avg_acc': p['accuracy'], \
+#                                                         }, \
+#                                                        index = [ii])])
+    
+    
+#     print('All sessions: %d runs of main task total'%(behav_run_info.shape[0]))
+
+#     filename_save = os.path.join(behav_data_folder, '%s_maintask_behav_run_info.csv'%subject)
+#     print('Saving to: %s'%filename_save)
+#     behav_run_info.to_csv(filename_save, index=False)
 
 def cross_check_behav_fmri_maintask(ss):
 
@@ -172,14 +314,15 @@ def cross_check_behav_fmri_maintask(ss):
     # while the MRI data file .csv file (loaded next) goes in actual time order. 
     # so we want to put this in actual time order so we can compare against mri data files.
     behav_run_info_timesorted = behav_run_info.iloc[[]]
-    sess = behav_run_info['sess_in_task']
-
-    for ses in np.unique(sess):
+    date = behav_run_info['date_raw']
     
-        b = behav_run_info[sess==ses]
+    for d in np.unique(date):
+    
+        print(d)
+        b = behav_run_info[date==d]
         sorder_time = np.argsort(b['time_raw'])
         behav_run_info_timesorted = pd.concat([behav_run_info_timesorted, b.iloc[sorder_time]])
-    
+
         
     # now I'm going to load info about my MRI files.
     # these are in a separate CSV file that we made as part of preprocessing pipeline.
@@ -512,3 +655,46 @@ def process_timing_maintask(ss):
     print('Saving to: %s'%filename_save)
     tr_info.to_csv(filename_save, index=False)
 
+
+def get_categ_info():
+
+    # Creating a file that contains info about the 48 categories used in the experiment.
+    # It's based on a file that originally had info about 64 categories, and we reduced it to 48 
+    # for the fMRI study. Just adjusting the file so we can load it easily.
+    # Should only need to run this once, same for all subjects.
+    # (except for S02, which was the pilot subject w 64 categories).
+
+    ecoset_info_path = '/user_data/mmhender/stimuli/ecoset_info/'
+
+    fn = os.path.join(ecoset_info_path, 'categ_use_ecoset.npy')
+    info = np.load(fn, allow_pickle=True).item()
+    bnames = np.array(list(info['binfo'].keys()))
+    snames = np.array(list(info['sinfo'].keys()))
+
+    basic_use_6 = {'insect': ['beetle','bee','butterfly','grasshopper','caterpillar','moth'],
+             'mammal': ['dog', 'squirrel', 'elephant', 'cow', 'pig', 'rabbit'],
+             'vegetable': ['pea', 'corn', 'onion', 'cabbage', 'beet', 'asparagus'],
+             'fruit': ['grape', 'cherry', 'raspberry', 'pear', 'banana', 'coconut'],
+             'tool': ['pencil', 'knife', 'broom', 'hammer', 'shovel', 'scissors'],
+             'musical instrument': ['bell', 'piano', 'violin', 'trumpet', 'clarinet', 'cymbal'],
+             'furniture': ['table', 'bench', 'couch', 'television', 'bed', 'lamp'],
+             'vehicle': ['train', 'airplane', 'car', 'bus', 'motorcycle', 'canoe']}
+
+    assert( np.all( snames==np.array(list(basic_use_6.keys())) ) )
+
+    info_48 = dict([])
+    info_48['sinfo'] = dict([])
+    info_48['binfo'] = dict([])
+
+    for si in range(len(snames)):
+
+        info_48['sinfo'][snames[si]] = {'super_name': snames[si], \
+                                       'basic_names': basic_use_6[snames[si]]}
+
+        for bname in basic_use_6[snames[si]]:
+
+            info_48['binfo'][bname] = info['binfo'][bname]
+
+    fn2save = os.path.join(codepath, 'preproc_python', 'categ_info_48.npy')
+    print(fn2save)
+    np.save(fn2save, info_48)

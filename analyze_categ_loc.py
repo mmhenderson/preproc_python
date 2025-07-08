@@ -4,18 +4,19 @@ import subprocess
 import pandas as pd
 import scipy
 import scipy.io
-
+import copy
+import nibabel as nib
+from scipy.stats import t
 
 # just make sure we're loading the right version of these modules
-codepath = '/home/lab/hendersonlab/code_featsynth/preproc_code/'
-# codepath = '/lab_data/hendersonlab/preproc_code/'
+# codepath = '/home/lab/hendersonlab/code_featsynth/preproc_code/'
+codepath = '/lab_data/hendersonlab/code_featsynth/preproc_code/'
 sys.path.insert(0, codepath)
 
 from preproc_python import file_utils
 
-# project_root = '/user_data/mmhender/data_UW/'
-project_root = '/home/lab/hendersonlab/data_featsynth/'
-retino_path = '/home/lab/hendersonlab/retino_data/ANAT/'
+project_root = '/lab_data/hendersonlab/data_featsynth/'
+retino_path = '/lab_data/hendersonlab/retino_data/ANAT/'
 
 run_type='fLoc'
 
@@ -27,6 +28,9 @@ def analyze_loc(subject, subject_FS):
     run_glm_firstlevel(subject)
     
     run_glm_higherlevel(subject)
+    
+    threshold_tstat_maps(subject, fdr_q_thresh = 0.05)
+    threshold_tstat_maps(subject, fdr_q_thresh = 0.01)
     
     organize_outputs(subject)
 
@@ -488,8 +492,156 @@ def run_glm_higherlevel(subject, higher_level_FE = True):
 
         else:
             print('\nDONE')
-            
-            
+
+
+def get_contrast_names(subject):
+        
+    # load first FSF file to figure out contrast names, etc
+    fsf_dir = os.path.join(project_root, 'CategLocAnalysis', subject, 'fsfs');
+    
+    fsf_files = os.listdir(fsf_dir)
+    fsf_files = [f for f in fsf_files if '.fsf' in f]
+    fsf_files = [f for f in fsf_files if 'high_level_design' not in f]
+    
+    fn = os.path.join(fsf_dir, fsf_files[0])
+    
+    with open(fn) as f:
+        lines = f.readlines()
+    
+    ind = [li for li, l in enumerate(lines) if l=='# Number of contrasts\n']
+    l = lines[ind[0]+1]
+    n_contrasts = int(l.split('set fmri(ncon_orig) ')[1].split('\n')[0])
+    
+    ind = np.array([li for li, l in enumerate(lines) if 'Title for contrast_real' in l])
+    lines_use = np.array(lines)[ind+1]
+    cnames = [l.split('"')[1] for l in lines_use]
+    cnames = [c.replace('>', '_gr_') for c in cnames]
+    
+    contrast_dict = dict([])
+    for ci, cname in enumerate(cnames):
+        contrast_dict[cname] = 'cope%d'%(ci+1)
+
+    assert(len(cnames)==n_contrasts)
+    
+    
+    return contrast_dict
+
+
+def threshold_tstat_maps(subject, fdr_q_thresh = 0.05):
+    
+    # find all the feat dirs that I need to look in.
+    feat_dir = os.path.join(project_root, 'CategLocAnalysis', subject, 'feats');
+    
+    fdirs = os.listdir(feat_dir)
+    fdirs = [d.split('.')[0] for d in fdirs]
+
+    fdirs_avg = [d for d in fdirs if 'AllSessions' in d]
+    
+    fdir = fdirs_avg[0]
+    
+    contrast_dict = get_contrast_names(subject)
+    n_contrasts = len(contrast_dict.keys())
+
+    
+    # loop over the contrasts
+    for cc in np.arange(1, n_contrasts+1):
+        
+        cope_name = 'cope%d'%cc
+        print(cope_name)
+
+        
+        # this is where we do the actual thresholding/FDR correction
+        # using FSL functionalities for this...
+        vox_above_thresh, tstats, my_t = get_tstats_masked(subject, cope_name, fdr_q_thresh = fdr_q_thresh)
+        
+        tstats_thresh = copy.deepcopy(tstats)
+        tstats_thresh[tstats_thresh<=my_t] = np.nan
+
+        # load my original t-statistics file, use it as a template
+        statsfolder = os.path.join(feat_dir, '%s.gfeat'%fdir, '%s.feat'%cope_name,'stats')
+        statsfilename = os.path.join(statsfolder, 'tstat1.nii.gz')
+        print(statsfilename)
+        
+        tstats_orig = nib.load(statsfilename)
+        # now making a new nifti file with all the same header info, but now the data is thresholded
+        tstats_new = nib.Nifti1Image(tstats_thresh, tstats_orig.affine, tstats_orig.header)
+
+        statsfilename_new = os.path.join(statsfolder, 'tstat1_THRESH_%0.2f.nii.gz'%fdr_q_thresh)
+        print(statsfilename_new)
+        nib.save(tstats_new, statsfilename_new)
+        
+        
+
+def get_tstats_masked(subject, cope_name, fdr_q_thresh = 0.05):
+
+    # After FSL FEAT has been run, this is how we compute a binary mask of 
+    # significance for each contrast. Determine which t-statistics are significant.
+    # Includes FDR correction.
+
+    # keep track of which dir we start in
+    orig_dir = os.getcwd()
+    
+    stats_folder = os.path.join(project_root, 'CategLocAnalysis', subject, 'feats',\
+                                'AllSessionsFE.gfeat', '%s.feat'%cope_name, 'stats')
+    file_name = os.path.join(stats_folder, 'tstat1.nii.gz')
+    
+    print(file_name)
+    tstats = np.array(nib.load(file_name).get_fdata())
+    # orig_size = tstats.shape
+    # tstats = tstats.ravel(order='C')
+    
+    # Go into the actual folder where my stats outputs from FEAT are located.
+    os.chdir(stats_folder)
+    print(os.getcwd())
+    
+    # Gives the dof I need for fixed effects (which is the test I ran)
+    # Output is a string
+    cmd = 'fslstats tdof_t1 -M'
+    print(cmd)
+    sys.stdout.flush()
+    out = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    my_FE_dof_str = out.stdout.strip()
+    my_FE_dof = float(my_FE_dof_str)
+    
+    # % make log p-stats map
+    # File created is: logp1.nii.gz
+    cmd = 'ttologp -logpout logp1 varcope1 cope1 %s'%my_FE_dof_str
+    
+    print(cmd)
+    sys.stdout.flush()
+    out = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    
+    # % convert from log to p-value map
+    # File created is: p1.nii.gz
+    cmd = 'fslmaths logp1 -exp p1'
+    
+    print(cmd)
+    sys.stdout.flush()
+    out = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    
+    # % do FDR on p-value map and get probability threshold
+    # File created is: p1.nii.gz
+    cmd = 'fdr -i p1 -q %0.2f'%fdr_q_thresh
+    
+    print(cmd)
+    sys.stdout.flush()
+    out = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    p_threshold_str = out.stdout.split('\n')[1]
+    
+    p_threshold = float(p_threshold_str)
+    
+    # % go from my p-threshold back into my t-stat
+    my_t = np.abs(t.ppf(p_threshold, my_FE_dof))
+    print(my_t)
+    
+    vox_above_thresh = tstats > my_t
+    
+    # back to original dir
+    os.chdir(orig_dir)
+
+    return vox_above_thresh, tstats, my_t
+
+    
 def organize_outputs(subject):
     
     # this is just a convenience function to help put all our FEAT outputs into one folder
@@ -512,35 +664,43 @@ def organize_outputs(subject):
 
     fdirs_avg = [d for d in fdirs if 'AllSessions' in d]
     fdirs_ss = [d for d in fdirs if 'AllSessions' not in d]
-   
-    # load first FSF file to figure out contrast names, etc
-    fsf_dir = os.path.join(project_root, 'CategLocAnalysis', subject, 'fsfs');
 
-    fn = os.path.join(fsf_dir, '%s.fsf'%(fdirs_ss[0]))
+    contrast_dict = get_contrast_names(subject)
 
-    with open(fn) as f:
-        lines = f.readlines()
+    cnames = list(contrast_dict.keys())
+    n_contrasts = len(cnames)
+    
+    # # load first FSF file to figure out contrast names, etc
+    # fsf_dir = os.path.join(project_root, 'CategLocAnalysis', subject, 'fsfs');
 
-    ind = [li for li, l in enumerate(lines) if l=='# Number of contrasts\n']
-    l = lines[ind[0]+1]
-    n_contrasts = int(l.split('set fmri(ncon_orig) ')[1].split('\n')[0])
+    # fn = os.path.join(fsf_dir, '%s.fsf'%(fdirs_ss[0]))
+
+    # with open(fn) as f:
+    #     lines = f.readlines()
+
+    # ind = [li for li, l in enumerate(lines) if l=='# Number of contrasts\n']
+    # l = lines[ind[0]+1]
+    # n_contrasts = int(l.split('set fmri(ncon_orig) ')[1].split('\n')[0])
   
-    ind = np.array([li for li, l in enumerate(lines) if 'Title for contrast_real' in l])
-    lines_use = np.array(lines)[ind+1]
-    cnames = [l.split('"')[1] for l in lines_use]
-    cnames = [c.replace('>', '_gr_') for c in cnames]
+    # ind = np.array([li for li, l in enumerate(lines) if 'Title for contrast_real' in l])
+    # lines_use = np.array(lines)[ind+1]
+    # cnames = [l.split('"')[1] for l in lines_use]
+    # cnames = [c.replace('>', '_gr_') for c in cnames]
    
-    assert(len(cnames)==n_contrasts)
+    # assert(len(cnames)==n_contrasts)
     
     for si, fdir in enumerate(fdirs_ss):
         statsfolder = os.path.join(feat_dir, '%s.feat'%fdir, 'stats')
         for cc, cname in zip(np.arange(1, n_contrasts+1), cnames):
+            
             statsfilename = os.path.join(statsfolder, 'tstat%d.nii.gz'%(cc))
             newname = os.path.join(outfolder, '%s_%s_tstat.nii.gz'%(fdir, cname))
-            cmd = 'cp %s %s'%(statsfilename, newname)
+            cmd = 'cp -p %s %s'%(statsfilename, newname)
             print(cmd)
             sys.stdout.flush()
             err = subprocess.call(cmd, shell=True)
+            
+           
 
 
     for si, fdir in enumerate(fdirs_avg):
@@ -551,7 +711,23 @@ def organize_outputs(subject):
 
             statsfilename = os.path.join(statsfolder, 'tstat1.nii.gz')
             newname = os.path.join(outfolder, '%s_%s_%s_tstat.nii.gz'%(subject, fdir, cname))
-            cmd = 'cp %s %s'%(statsfilename, newname)
+            cmd = 'cp -p %s %s'%(statsfilename, newname)
+            print(cmd)
+            sys.stdout.flush()
+            err = subprocess.call(cmd, shell=True)
+            
+            # also copying thresholded vers of maps.
+            statsfilename = os.path.join(statsfolder, 'tstat1_THRESH_0.05.nii.gz')
+            newname = os.path.join(outfolder, '%s_%s_%s_tstat_THRESH_0.05.nii.gz'%(subject, fdir, cname))
+            cmd = 'cp -p %s %s'%(statsfilename, newname)
+            print(cmd)
+            sys.stdout.flush()
+            err = subprocess.call(cmd, shell=True)
+            
+            # also copying thresholded vers of maps.
+            statsfilename = os.path.join(statsfolder, 'tstat1_THRESH_0.01.nii.gz')
+            newname = os.path.join(outfolder, '%s_%s_%s_tstat_THRESH_0.01.nii.gz'%(subject, fdir, cname))
+            cmd = 'cp -p %s %s'%(statsfilename, newname)
             print(cmd)
             sys.stdout.flush()
             err = subprocess.call(cmd, shell=True)
